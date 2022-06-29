@@ -18,7 +18,7 @@ static const int RX_BUF_SIZE = 1024;
 
 #define TXD_PIN (GPIO_NUM_13)
 #define RXD_PIN (GPIO_NUM_12)
-char query[1][8]={{ 0x01, 0x05, 0x00, 0xAC, 0XFF, 0X00}};
+char query[1][11]={{ 0x01, 0x0F, 0x00, 0x00, 0X00, 0X0A, 0X02, 0XFF, 0X03}};
 
 void init(void) {
     const uart_config_t uart_config = {
@@ -41,7 +41,7 @@ void Add_CRC(char query[]) //++ Funtion to Add CRC Check for every query
 
     uint16_t crc = 0xFFFF;
 
-    for (int pos = 0; pos < 6; pos++)
+    for (int pos = 0; pos < 9; pos++)
     {
         crc ^= (uint16_t)query[pos]; // XOR byte into least sig. byte of crc
 
@@ -57,22 +57,22 @@ void Add_CRC(char query[]) //++ Funtion to Add CRC Check for every query
         }
     }
     // Note, this number has low and high bytes swapped, so use it accordingly (or swap bytes)
-    query[6] = *((char *)&crc + 0); //&crc+0; //*((char*)&crc+0);
-    query[7] = *((char *)&crc + 1); //&crc+1; //*((char*)&crc+1);
+    query[9] = *((char *)&crc + 0); //&crc+0; //*((char*)&crc+0);
+    query[10] = *((char *)&crc + 1); //&crc+1; //*((char*)&crc+1);
                                     // printf("\nbefore crc return=%s",query[5]);
    // return query;
 }
 
 
-int sendData(const char* logName, const char* data)
+int sendData(const char* logName)
 {
-    const int len = sizeof(data);
-    const int txBytes = uart_write_bytes(UART_NUM_1, data, len);
+    const int len = sizeof(query[0]);
+    const int txBytes = uart_write_bytes(UART_NUM_1, query[0], len);
     printf("\n\nQyery sent:");
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 11; i++)
     {
         
-        printf(" %x", data[i]);
+        printf(" %x", query[0][i]);
     }
     printf("\n");
     ESP_LOGI(logName, "Wrote %d bytes", txBytes);
@@ -85,7 +85,7 @@ static void tx_task(void *arg)
     esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
     while (1) {
          Add_CRC(query[0]);
-        sendData(TX_TASK_TAG,query[0]);
+        sendData(TX_TASK_TAG);
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
 }
