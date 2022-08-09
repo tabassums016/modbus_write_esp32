@@ -23,11 +23,15 @@ static const char *TAG = "MODBUS";
 
 // char query[1][17]={{ 0x01, 0x10, 0x00, 0x00, 0X00, 0X04, 0x08, 0x46, 0x0F, 0xFF, 0x5C, 0x00, 0x00, 0x23, 0xFF}}; // write multiple register
 //
-char query[] ; //= {0x01, 0x10, 0x00, 0x00, 0X00, 0X04, 0x08, 0x46, 0x0F, 0xFF, 0x5C, 0x00, 0x00, 0x23, 0xFF};
+char query[]; //= {0x01, 0x10, 0x00, 0x00, 0X00, 0X04, 0x08, 0x46, 0x0F, 0xFF, 0x5C, 0x00, 0x00, 0x23, 0xFF};
 
 // char query[]={ 0x01, 0x06, 0x00, 0x01, 0X23, 0XFF}; // write single register
 // char query[1][8]={{ 0x01, 0x06, 0x00, 0x01, 0X23, 0XFF}}; // write single register
 //  char query[1][11]={{ 0x01, 0x0F, 0x00, 0x00, 0X00, 0X0A, 0X02, 0XFF, 0X03}};  //write multiple coil
+
+void write_modbus_cases(int func_code, int datatype, int register_count, char write_values[]);
+char *Add_CRC(char query[], int len);
+void sendData(char query[], int len);
 
 void init(void)
 {
@@ -45,19 +49,139 @@ void init(void)
     uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 }
 
+void datatype_parser(uint16_t* write_values,uint8_t *modbus_received, int register_count) //++ Function to Parse Response according to Data Types
+{
+    uint8_t datatype_int=12;
+    // int index;
+    // int data_field = 0;
+    // int query_ix=0;
+    // uint16_t write_data [100];
+    // char slave_data[50];
+    // while (data_field != strlen(write_values))
+    // {
+    //     index = 0;
+    //     memset(slave_data,0,sizeof(slave_data));
+    //     while (write_values[data_field] != ',') //++ Parsing of Slave ID
+    //     {
+    //         slave_data[index] = write_values[data_field];
+    //         data_field++;
+    //         index++;
+    //     }
+    //     write_data[query_ix]=atoi(slave_data);
+    //     query_ix++;
+    //     data_field++;
+    // }
+
+    switch (datatype_int)
+    {
+    
+   
+
+    case 12:
+    {
+        // int bytecount=register_count;
+        // INT AB
+        int index = 7;
+        uint16_t mbdata; 
+        int test;
+        for (int i = 0; i < register_count; i++)
+        {
+            mbdata = write_values[i];
+            printf("\nquery arr value %d",mbdata);
+            printf("\nquery arr 0 %d",*((char *)&mbdata + 0) & 0xFF);
+            printf("\nquery arr 1 %d",*((char *)&mbdata + 1) & 0xFF);
+            test=*((char *)&mbdata + 0) & 0xFF ;
+            query[index+1]=test;
+            printf("\nquery data 0: %d",test);
+            test=*((char *)&mbdata + 1) & 0xFF ;
+            query[index]=test;
+            printf("\nquery data 1:%d",test);
+            printf("\nquery data %d= %d %d",i, query[index],query[index+1]);
+
+            // query[index+1]=*((char *)&mbdata + 0) & 0xFF ;
+            // query[index]=*((char *)&mbdata + 1) & 0xFF ;
+
+            index=index+2;
+            
+        }
+        break;
+    }
+
+    case 13:
+    {
+        // INT BA
+        int16_t slave_response[register_count];
+        int index = 3;
+        int16_t mbdata = 0;
+
+        for (int i = 0; i < register_count; i++)
+        {
+            *((char *)&mbdata + 0) = modbus_received[index];
+            *((char *)&mbdata + 1) = modbus_received[index + 1];
+
+            index = index + 2;
+            slave_response[i] = mbdata;
+        }
+
+        break;
+    }
+
+    case 14:
+    {
+        // UINT AB
+        uint16_t slave_response[register_count];
+        int index = 3;
+        uint16_t mbdata = 0;
+
+        for (int i = 0; i < register_count; i++)
+        {
+            *((char *)&mbdata + 0) = modbus_received[index + 1];
+            *((char *)&mbdata + 1) = modbus_received[index];
+
+            index = index + 2;
+            slave_response[i] = mbdata;
+        }
+        break;
+    }
+
+    case 15:
+    {
+        // UINT BA
+        uint16_t slave_response[register_count];
+        int index = 3;
+        uint16_t mbdata = 0;
+
+        for (int i = 0; i < register_count; i++)
+        {
+            *((char *)&mbdata + 0) = modbus_received[index];
+            *((char *)&mbdata + 1) = modbus_received[index + 1];
+
+            index = index + 2;
+            slave_response[i] = mbdata;
+        }
+        break;
+    }
+
+    default:
+    {
+        // sprintf(mqtt_string, "{\"data\":[\"ERROR\"]}");
+        break;
+    }
+    }
+}
 void query_parser()
 {
 
-    char query_str[] = "{1,16,0,4,8,0,256,786}";
+    char query_str[] = "{1,16,104,4,8,12,266,77,99,8}";
 
-        int slave_int = 0;    //++ Variable to store Slave Id as Integer
+    int slave_int = 0;        //++ Variable to store Slave Id as Integer
     int function_int = 0;     //++ Variable to store Function Code as Integer
     int addressH_int = 0;     //++ Variable to store MSB Address as Integer
     int addressL_int = 0;     //++ Variable to store LSB Address as Integer
     int registerH_int = 0;    //++ Variable to store MSB Register as Integer
-    int registerL_int = 0;    //++ Variable to store LSB Register as Integer
+    int registerL_int = 1;    //++ Variable to store LSB Register as Integer
     uint8_t datatype_int = 0; //++ Variable to store data_field as Integer
-     int query_param_ix = 0;   //++ Variable to store query parameter insex
+    int query_param_ix = 0;   //++ Variable to store query parameter insex
     int bytecount_int = 2;
     int index = 0; //++ Indices to navigate the string
     int data_field = 1;
@@ -89,8 +213,8 @@ void query_parser()
         index++;
     }
     slave_int = atoi(slave_data);
+    query[query_param_ix] = slave_int;
     query_param_ix++;
-    query[query_param_ix]=slave_int;
 
     data_field++;
     index = 0;
@@ -101,8 +225,8 @@ void query_parser()
         index++;
     }
     function_int = atoi(function_data);
+    query[query_param_ix] = function_int;
     query_param_ix++;
-    query[query_param_ix]=function_int;
 
     data_field++;
     index = 0;
@@ -114,13 +238,10 @@ void query_parser()
     }
     addressH_int = atoi(address_data) / 256;
     addressL_int = atoi(address_data) % 256;
+    query[query_param_ix] = addressH_int;
     query_param_ix++;
-    query[query_param_ix]=addressH_int;
+    query[query_param_ix] = addressL_int;
     query_param_ix++;
-    query[query_param_ix]=addressL_int;
-
-
-    
 
     if (function_int == 15 || function_int == 16) // No of register required only in  write multiple coil (15) and multiple register (16)
     {
@@ -134,11 +255,10 @@ void query_parser()
         }
         registerH_int = atoi(register_data) / 256;
         registerL_int = atoi(register_data) % 256;
+        query[query_param_ix] = registerH_int;
         query_param_ix++;
-        query[query_param_ix]=registerH_int;
+        query[query_param_ix] = registerL_int;
         query_param_ix++;
-        query[query_param_ix]=registerL_int;
-
 
         data_field++;
         index = 0;
@@ -149,78 +269,124 @@ void query_parser()
             index++;
         }
         bytecount_int = atoi(byte_count);
+        query[query_param_ix] = bytecount_int;
         query_param_ix++;
-        query[query_param_ix]=bytecount_int;
-
     }
 
-   
     data_field++;
     index = 0;
-    while (query_str[data_field] != ',') //++ Parsing of MSB Register
+    while (query_str[data_field] != ',') //++ Parsing datatype
     {
         data_mode[index] = query_str[data_field];
         data_field++;
         index++;
     }
     datatype_int = atoi(data_mode);
-   
 
     data_field++;
     index = 0;
 
-    while (query_str[data_field] != '}') //++ Parsing of query_str Index
+    while (query_str[data_field] != '}') //++ Parsing of data to write
     {
         write_data[index] = query_str[data_field];
         data_field++;
         index++;
     }
     query_param_ix++;
-    ESP_LOGI(TAG, "WRITE DATA = %s", write_data);
-
-    
+    ESP_LOGI(TAG, "WRITE DATA = %s\n", write_data);
+    for (int i = 0; i < 7; i++)
+    {
+        // send_arr[0][i] = query[i];
+        printf("%02X  ", query[i]);
+    }
+    write_modbus_cases(function_int, datatype_int,registerL_int, write_data);
+    printf("\n After data addition:\n");
+    for (int i = 0; i < 15; i++)
+    {
+        // send_arr[0][i] = query[i];
+        printf("%02X  ", query[i]);
+    }
     // querycount_int = atoi(q_count);
     printf("reg data in nvs= %d\n", atoi(address_data));
     printf("reg address= %x %x\n", addressH_int, addressL_int);
+    char *final_query = malloc(50);
+    // char send_arr[1][len];
+    final_query = Add_CRC(query, 15);
+        // len=len+2;
+        sendData(final_query, 17);
 }
 
-void write_modbus_cases(int func_code, int datatype, int query_ix, char write_values)
+void write_modbus_cases(int func_code, int datatype, int register_count, char write_values[])
 {
+    printf("\n Length of write values =%d",strlen(write_values));
+    printf("\nFunc code: %d",func_code);
     switch (func_code)
     {
     case 5: // single coil
+    {
+        int query_ix = 4;
+        if (atoi(write_values) == 1)
         {
-            if(atoi(write_values)==1){
-                query[query_ix]=0xFF;
-                query[query_ix+1]=0x00;
-            }
+            query[query_ix] = 0xFF;
+            query[query_ix + 1] = 0x00;
         }
-        break;
-    
-    case 15:  //multiple coil
+        else if (atoi(write_values) == 0)
         {
-            
+            query[query_ix] = 0x00;
+            query[query_ix + 1] = 0x00;
         }
-        break;
+    }
+    break;
 
-    case 6:   //single register
-        {
-            
-        }
-        break;
+    // case 15: // multiple coil
+    // {
+    // }
+    // break;
 
-    case 16:  //multiple register
+    case 6: // single register
+    {
+        uint16_t write_data [100];
+        write_data[0]=atoi(write_values);
+        
+        datatype_parser(write_data,NULL,register_count);
+    }
+    break;
+
+    case 16: // multiple register
+    {
+        int index;
+    int data_field = 0;
+    int query_ix=0;
+    // uint16_t write_data [100];
+    uint16_t* write_data=malloc(100);
+    char slave_data[50];
+    ESP_LOGI("PARSER","Length of write values =%d",strlen(write_values));
+    while (data_field <= strlen(write_values))
+    {
+        index = 0;
+        memset(slave_data,0,sizeof(slave_data));
+        while (write_values[data_field] != ','&& data_field != strlen(write_values)) 
         {
-            
+            slave_data[index] = write_values[data_field];
+            data_field++;
+            //  ESP_LOGI("PARSER","data_field:%d",data_field);
+            index++;
         }
-        break;
+        write_data[query_ix]=atoi(slave_data);
+        ESP_LOGI("PARSER","data %d:%d",query_ix,write_data[query_ix]);
+        query_ix++;
+        data_field++;
+    }
+     datatype_parser(write_data,NULL,register_count);
     
+
+    }
+    break;
+
     default:
         break;
     }
 }
-
-
 
 char *Add_CRC(char query[], int len) //++ Funtion to Add CRC Check for every query
 {
@@ -268,7 +434,7 @@ void sendData(char query[], int len) //++ Function to send Modbus Queries
         printf(" %X", query[i]);
     }
     const int txBytes = uart_write_bytes(UART_NUM_1, query, len);
-    printf("\nSending query %d bytes", txBytes);
+    ESP_LOGI("SEND","\nSending query %d bytes", txBytes);
     // printf("\nquery_rcv=%d", query_send[0][5]);
 }
 
@@ -278,18 +444,22 @@ static void tx_task(void *arg)
     esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
     int len = 0;
     char *final_query = malloc(50);
-    len = sizeof(query);
     char send_arr[1][len];
-    for (int i = 0; i < len; i++)
-    {
-        send_arr[0][i] = query[i];
-    }
+    // query_parser();
+    // len = sizeof(query);
+
+    // for (int i = 0; i < 6; i++)
+    // {
+    //     // send_arr[0][i] = query[i];
+    //     printf("%02X  ", query[i]);
+    // }
     while (1)
     {
 
-        final_query = Add_CRC(send_arr[0], len);
-        // len=len+2;
-        sendData(final_query, len + 2);
+        // final_query = Add_CRC(send_arr[0], len);
+        // // len=len+2;
+        // sendData(final_query, len + 2);
+        query_parser();
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
 }
@@ -315,7 +485,7 @@ static void rx_task(void *arg)
 void app_main(void)
 {
     init();
-    query_parser();
-    xTaskCreate(rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES, NULL);
-    xTaskCreate(tx_task, "uart_tx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 1, NULL);
+//    query_parser();
+     xTaskCreate(rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES, NULL);
+     xTaskCreate(tx_task, "uart_tx_task", 2048 * 2, NULL, configMAX_PRIORITIES - 1, NULL);
 }
